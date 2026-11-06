@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 data class CatalogoUiState(
     val filmes: List<FilmeTerror> = emptyList(),
     val carregando: Boolean = false,
+    val erro: String? = null,
     val termoBusca: String = "",
     val mensagemFeedback: String? = null
 )
@@ -25,6 +26,9 @@ class CineTerrorViewModel(
 
     private val _uiState = MutableStateFlow(CatalogoUiState(carregando = true))
     val uiState: StateFlow<CatalogoUiState> = _uiState.asStateFlow()
+
+    private val _filmeSelecionado = MutableStateFlow<FilmeTerror?>(null)
+    val filmeSelecionado: StateFlow<FilmeTerror?> = _filmeSelecionado.asStateFlow()
 
     val favoritosState: StateFlow<List<FilmeTerror>> = repository.favoritosFlow
         .stateIn(
@@ -37,14 +41,30 @@ class CineTerrorViewModel(
         carregarCatalogo("horror")
     }
 
+    fun selecionarFilme(filme: FilmeTerror?) {
+        _filmeSelecionado.value = filme
+    }
+
     fun carregarCatalogo(termo: String = "horror") {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(carregando = true, mensagemFeedback = null)
-            val resultado = repository.buscarCatalogoTerror(termo.ifBlank { "horror" })
-            _uiState.value = _uiState.value.copy(
-                filmes = resultado,
-                carregando = false
-            )
+            _uiState.value = _uiState.value.copy(carregando = true, erro = null, mensagemFeedback = null)
+            val termoBusca = termo.ifBlank { "horror" }
+            
+            val filmesOffline = repository.buscarOffline(termoBusca)
+
+            try {
+                val filmesOnline = repository.buscarOnline(termoBusca)
+                _uiState.value = _uiState.value.copy(
+                    filmes = filmesOnline + filmesOffline,
+                    carregando = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    filmes = filmesOffline,
+                    erro = "Sem conexão com a internet. Exibindo apenas o catálogo offline.",
+                    carregando = false
+                )
+            }
         }
     }
 
@@ -59,31 +79,43 @@ class CineTerrorViewModel(
 
     fun alternarFavorito(filme: FilmeTerror) {
         viewModelScope.launch {
-            val jaFavorito = favoritosState.value.any { it.id == filme.id }
-            if (jaFavorito) {
-                repository.removerFavorito(filme)
-                mostrarMensagem("${filme.titulo} removido da sua lista local.")
-            } else {
-                repository.salvarFavorito(filme)
-                mostrarMensagem("${filme.titulo} salvo nos Favoritos (Room)!")
+            try {
+                val jaFavorito = favoritosState.value.any { it.id == filme.id }
+                if (jaFavorito) {
+                    repository.removerFavorito(filme)
+                    mostrarMensagem("${filme.titulo} removido da sua lista local.")
+                } else {
+                    repository.salvarFavorito(filme)
+                    mostrarMensagem("${filme.titulo} salvo nos Favoritos (Room)!")
+                }
+            } catch (e: Exception) {
+                mostrarMensagem("Erro ao atualizar os favoritos.")
             }
         }
     }
 
     fun alternarAssistido(filme: FilmeTerror) {
         viewModelScope.launch {
-            val atualizado = filme.copy(assistido = !filme.assistido)
-            repository.atualizarFilme(atualizado)
-            val statusTexto = if (atualizado.assistido) "marcado como Assistido!" else "marcado como Pendente."
-            mostrarMensagem("\"${filme.titulo}\" $statusTexto")
+            try {
+                val atualizado = filme.copy(assistido = !filme.assistido)
+                repository.atualizarFilme(atualizado)
+                val statusTexto = if (atualizado.assistido) "marcado como Assistido!" else "marcado como Pendente."
+                mostrarMensagem("\"${filme.titulo}\" $statusTexto")
+            } catch (e: Exception) {
+                mostrarMensagem("Erro ao atualizar o status do filme.")
+            }
         }
     }
 
     fun salvarComentarioPessoal(filme: FilmeTerror, comentario: String) {
         viewModelScope.launch {
-            val atualizado = filme.copy(comentarioPessoal = comentario.trim())
-            repository.salvarFavorito(atualizado)
-            mostrarMensagem("Anotação salva com sucesso no banco de dados!")
+            try {
+                val atualizado = filme.copy(comentarioPessoal = comentario.trim())
+                repository.salvarFavorito(atualizado)
+                mostrarMensagem("Anotação salva com sucesso no banco de dados!")
+            } catch (e: Exception) {
+                mostrarMensagem("Erro ao salvar anotação.")
+            }
         }
     }
 
@@ -96,23 +128,27 @@ class CineTerrorViewModel(
         sinopse: String
     ) {
         viewModelScope.launch {
-            val novoId = (System.currentTimeMillis() % 100000).toInt() + 5000
-            val novoFilme = FilmeTerror(
-                id = novoId,
-                titulo = titulo.trim(),
-                ano = ano.trim().ifEmpty { "2026" },
-                diretor = diretor.trim().ifEmpty { "Diretor Independente" },
-                subgenero = subgenero.trim().ifEmpty { "Terror Sobrenatural" },
-                notaImdb = nota.trim().ifEmpty { "8.0" },
-                sinopse = sinopse.trim().ifEmpty { "Filme cadastrado manualmente pela Weydla." },
-                posterUrl = "",
-                assistido = false
-            )
-            repository.salvarFavorito(novoFilme)
-            _uiState.value = _uiState.value.copy(
-                filmes = listOf(novoFilme) + _uiState.value.filmes
-            )
-            mostrarMensagem("Filme \"${novoFilme.titulo}\" cadastrado e salvo no Room!")
+            try {
+                val novoId = (System.currentTimeMillis() % 100000).toInt() + 5000
+                val novoFilme = FilmeTerror(
+                    id = novoId,
+                    titulo = titulo.trim(),
+                    ano = ano.trim().ifEmpty { "2026" },
+                    diretor = diretor.trim().ifEmpty { "Diretor Independente" },
+                    subgenero = subgenero.trim().ifEmpty { "Terror Sobrenatural" },
+                    notaImdb = nota.trim().ifEmpty { "8.0" },
+                    sinopse = sinopse.trim().ifEmpty { "Filme cadastrado manualmente pela Weydla." },
+                    posterUrl = "",
+                    assistido = false
+                )
+                repository.salvarFavorito(novoFilme)
+                _uiState.value = _uiState.value.copy(
+                    filmes = listOf(novoFilme) + _uiState.value.filmes
+                )
+                mostrarMensagem("Filme \"${novoFilme.titulo}\" cadastrado e salvo no Room!")
+            } catch (e: Exception) {
+                mostrarMensagem("Erro ao cadastrar o filme.")
+            }
         }
     }
 

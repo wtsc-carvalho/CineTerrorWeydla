@@ -139,49 +139,113 @@ fun TelaCatalogo(
                     CircularProgressIndicator(color = CrimsonPrimary)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Carregando catálogo de terror via Retrofit...",
+                        text = "Carregando catálogo de terror...",
                         color = TextSecondary
                     )
                 }
             }
-        } else if (uiState.filmes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.MovieFilter,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Nenhum título encontrado para a busca.",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = onRecarregarPadrao) {
-                        Text("Restaurar Catálogo Principal")
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                
+                if (uiState.erro != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = CrimsonPrimary)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CloudOff, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Aviso de Conexão", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(uiState.erro, color = Color.White, fontSize = 13.sp)
+                            }
+                            IconButton(onClick = onExecutarBusca) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Tentar Novamente", tint = Color.White)
+                            }
+                        }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 88.dp)
-            ) {
-                items(uiState.filmes, key = { it.id }) { filme ->
-                    val ehFavorito = favoritosIds.contains(filme.id)
-                    CardFilmeTerror(
-                        filme = filme,
-                        ehFavorito = ehFavorito,
-                        onClick = { onSelecionarFilme(filme) },
-                        onFavoritarClick = { onAlternarFavorito(filme) }
-                    )
+
+                if (uiState.filmes.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.MovieFilter,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Nenhum título encontrado para a busca.",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(onClick = onRecarregarPadrao) {
+                                Text("Restaurar Catálogo Principal")
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 88.dp)
+                    ) {
+                        val filmesOnline = uiState.filmes.filter { it.id >= 1000 }
+                        val filmesOffline = uiState.filmes.filter { it.id < 1000 }
+
+                        if (filmesOnline.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Catálogo Online (API)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = CrimsonPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(filmesOnline, key = { it.id }) { filme ->
+                                val ehFavorito = favoritosIds.contains(filme.id)
+                                CardFilmeTerror(
+                                    filme = filme,
+                                    ehFavorito = ehFavorito,
+                                    onClick = { onSelecionarFilme(filme) },
+                                    onFavoritarClick = { onAlternarFavorito(filme) }
+                                )
+                            }
+                        }
+
+                        if (filmesOffline.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Catálogo Offline (Clássicos)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = CrimsonPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(filmesOffline, key = { it.id }) { filme ->
+                                val ehFavorito = favoritosIds.contains(filme.id)
+                                CardFilmeTerror(
+                                    filme = filme,
+                                    ehFavorito = ehFavorito,
+                                    onClick = { onSelecionarFilme(filme) },
+                                    onFavoritarClick = { onAlternarFavorito(filme) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -21,7 +21,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.weydla.projetofinal.data.local.AppDatabase
-import com.weydla.projetofinal.data.model.FilmeTerror
 import com.weydla.projetofinal.data.remote.TerrorApiService
 import com.weydla.projetofinal.data.repository.FilmeRepository
 import com.weydla.projetofinal.ui.screens.*
@@ -35,7 +34,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Inicialização do Banco Room e Serviço Retrofit
         val database = AppDatabase.getDatabase(applicationContext)
         val apiService = TerrorApiService.create()
         val repository = FilmeRepository(database.filmeDao(), apiService)
@@ -56,12 +54,11 @@ fun CineTerrorApp(viewModel: CineTerrorViewModel) {
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsState()
     val favoritos by viewModel.favoritosState.collectAsState()
+    val filmeSelecionado by viewModel.filmeSelecionado.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var filmeSelecionado by remember { mutableStateOf<FilmeTerror?>(null) }
     var exibirModalNovoFilme by remember { mutableStateOf(false) }
 
-    // Exibição automática de Feedback Visual (IHC: Visibilidade do Sistema via Snackbar)
     LaunchedEffect(uiState.mensagemFeedback) {
         uiState.mensagemFeedback?.let { mensagem ->
             snackbarHostState.showSnackbar(
@@ -113,7 +110,6 @@ fun CineTerrorApp(viewModel: CineTerrorViewModel) {
             }
         },
         bottomBar = {
-            // Prática 03: Compose + Navigation
             NavigationBar(containerColor = TerrorSurface) {
                 NavigationBarItem(
                     selected = rotaAtual == "catalogo",
@@ -177,7 +173,7 @@ fun CineTerrorApp(viewModel: CineTerrorViewModel) {
                     onExecutarBusca = viewModel::executarBusca,
                     onRecarregarPadrao = { viewModel.carregarCatalogo("horror") },
                     onSelecionarFilme = { filme ->
-                        filmeSelecionado = favoritos.find { it.id == filme.id } ?: filme
+                        viewModel.selecionarFilme(favoritos.find { it.id == filme.id } ?: filme)
                         navController.navigate("detalhes")
                     },
                     onAlternarFavorito = viewModel::alternarFavorito
@@ -188,7 +184,7 @@ fun CineTerrorApp(viewModel: CineTerrorViewModel) {
                 TelaFavoritosRoom(
                     favoritos = favoritos,
                     onSelecionarFilme = { filme ->
-                        filmeSelecionado = filme
+                        viewModel.selecionarFilme(filme)
                         navController.navigate("detalhes")
                     },
                     onAlternarAssistido = viewModel::alternarAssistido,
